@@ -1,0 +1,27 @@
+FROM docker.m.daocloud.io/openresty/openresty:bullseye
+
+LABEL org.opencontainers.image.title="openresty-allinone-slim"
+LABEL org.opencontainers.image.description="OpenResty slim image without extra Lua plugins"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    inotify-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /etc/openresty/conf.d /etc/openresty/lua /var/log/openresty
+
+COPY docker/openresty-entrypoint.sh /usr/local/bin/openresty-entrypoint.sh
+COPY nginx/nginx.conf /etc/openresty/nginx.conf
+COPY nginx/conf.d/default.conf /etc/openresty/conf.d/default.conf
+COPY lua/health.lua /etc/openresty/lua/health.lua
+
+RUN sed -i 's/\r$//' /usr/local/bin/openresty-entrypoint.sh \
+    && chmod +x /usr/local/bin/openresty-entrypoint.sh
+
+EXPOSE 80 443
+
+ENTRYPOINT ["/usr/local/bin/openresty-entrypoint.sh"]
