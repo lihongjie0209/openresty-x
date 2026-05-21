@@ -13,6 +13,18 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: full
+            dockerfile: Dockerfile
+            suffix: ""
+            channel_tag: latest
+          - variant: slim
+            dockerfile: Dockerfile.slim
+            suffix: "-slim"
+            channel_tag: slim
 
     steps:
       - name: Checkout
@@ -27,24 +39,38 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.IMAGE_NAME }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest
+      - name: Compute image tags
+        id: tags
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          MAJOR="${VERSION%%.*}"
+          MINOR="${VERSION%.*}"
+
+          {
+            echo "tags<<EOF"
+            echo "${IMAGE_NAME}:${VERSION}${{ matrix.suffix }}"
+            echo "${IMAGE_NAME}:${MINOR}${{ matrix.suffix }}"
+            echo "${IMAGE_NAME}:${MAJOR}${{ matrix.suffix }}"
+            echo "${IMAGE_NAME}:${{ matrix.channel_tag }}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "labels<<EOF"
+            echo "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}"
+            echo "org.opencontainers.image.revision=${GITHUB_SHA}"
+            echo "org.opencontainers.image.version=${VERSION}${{ matrix.suffix }}"
+            echo "org.opencontainers.image.title=openresty-x-${{ matrix.variant }}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile
+          file: ./${{ matrix.dockerfile }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.tags.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
