@@ -1,0 +1,29 @@
+version: "2.4"
+
+services:
+  openresty:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${OPENRESTY_IMAGE_NAME:-openresty-allinone:local}
+    container_name: ${OPENRESTY_CONTAINER_NAME:-openresty-allinone}
+    restart: unless-stopped
+    ports:
+      - "${OPENRESTY_HTTP_PORT:-8080}:80"
+      - "${OPENRESTY_HTTPS_PORT:-8443}:443"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      OPENRESTY_CONFIG: /etc/openresty/nginx.conf
+      OPENRESTY_HOT_RELOAD: ${OPENRESTY_HOT_RELOAD:-true}
+      OPENRESTY_HOT_RELOAD_MODE: ${OPENRESTY_HOT_RELOAD_MODE:-poll}
+      OPENRESTY_POLL_INTERVAL: ${OPENRESTY_POLL_INTERVAL:-2}
+      OPENRESTY_WATCH_PATHS: /etc/openresty/nginx.conf /etc/openresty/conf.d /etc/openresty/lua
+    volumes:
+      - ${HOST_NGINX_MAIN_CONF:-./nginx/nginx.conf}:/etc/openresty/nginx.conf:ro
+      - ${HOST_NGINX_CONF_DIR:-./nginx/conf.d}:/etc/openresty/conf.d:ro
+      - ${HOST_LUA_DIR:-./lua}:/etc/openresty/lua:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
